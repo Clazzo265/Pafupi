@@ -1,5 +1,18 @@
 # Development operations & launch runbook
 
+## v0.2 operational additions
+
+Read [FREE_TIER_STACK.md](FREE_TIER_STACK.md) for reviewed free-tier options and hosted-auth setup. Current preview remains sample mode unless configured by the project owner. `npm run build && npm run serve:pilot` serves static files, service worker and API from one origin (API `PORT`, default 3001). This remains controlled pre-launch software; production startup is blocked. Both Vite dev and Vite preview now proxy `/api`, so a built preview plus a running API works locally. No provider account or public cloud deployment has been made.
+
+- `GET /api/health`: no-store, no-auth liveness probe; checks SQLite connectivity. It is not a backup/payment-reconciliation guarantee.
+- `GET /api/config`: public auth mode and optional non-secret Supabase project URL/publishable key. No secret/service-role credentials accepted.
+- `AUTH_MODE=demo`: original sample workflow, process-local sessions, seeded `data/pafupi.sqlite`.
+- `AUTH_MODE=supabase`: separate `data/accounts.sqlite` by default; no fixtures; remote verified email auth; customer role only; no provider enrollment or live payments. Use HTTPS and correct redirect URLs for controlled remote tests.
+- Build service worker: static files only, explicit update button, never private API caching. To inspect an old-version issue, use browser Application → Service Workers/Cache Storage, remove only `pafupi-shell-*` caches and reload online. Do not silently erase drafts.
+- Browser regression tests now run against built assets, including offline reload/privacy, auth UX fixtures and Axe serious/critical checks. Synthetic fixtures are not evidence of live email delivery.
+
+The existing GitHub CI still applies. Tests build before Playwright and use only synthetic credentials/data. Finish real hosted auth/email testing and a persistent managed data deployment before any public launch.
+
 ## GitHub-first responsibilities
 
 Keep source, design decisions, issue templates/backlog, tests, reviews, workflows and deployment configuration in this repository. Use GitHub Issues/Projects to track the phases in ROADMAP.md. Protect the release branch, require reviewed PRs and green CI, enable dependency/security alerts and secret scanning where available, and tag reviewed releases. No GitHub project, issue or release has been created automatically by this implementation.
@@ -12,7 +25,7 @@ GitHub Actions builds/tests; it is **not** an always-on application runtime. Git
 2. Run `npm run dev`; browse port **5173**. The API on **3001** is a development dependency, not the UI. Both bind 0.0.0.0 for sandbox previews.
 3. Vite permits `.e2b.app` previews. Browser requests use same-origin `/api`; Vite proxies to 127.0.0.1 **inside the server environment**. No browser localhost cross-service requests.
 4. Optional shell vars: `DATABASE_PATH`, `PORT`, `API_TARGET`. Vite has no secret frontend environment variables. See `.env.example`; do not assume `.env` loading.
-5. `npm run build` creates frontend assets only. `npm start` runs the development API only. `npm run preview` serves a build without the API proxy: it is a static asset inspection tool, not the working full application.
+5. `npm run build` creates frontend assets only. `npm start` runs the development API only. `npm run preview` serves a build and proxies `/api` to the separately running API. `npm run serve:pilot` serves the built app and API together. Neither is public production approval.
 6. CI runs `npm ci`, lint, formatting, type checks, tests, audit, build and Playwright Chromium tests. Browser setup may need system libraries. Test DB lives in memory and is discarded on server exit. Browser traces can contain test text; use only synthetic values.
 
 ### Reset development data
@@ -25,7 +38,7 @@ Stop the API before copying the SQLite DB or use SQLite's online backup capabili
 
 ## Production launch prerequisites
 
-- Remove/disable the demo session endpoint and fixtures, integrate verified authentication, enforce backend claims / least privilege, secure recovery and revocation.
+- Configure and validate the hosted-auth adapter on a real project (demo sessions/fixtures are already disabled in account mode); finish verified contact policies, privileged backend roles, recovery/revocation and user-data controls.
 - Replace local DB with a backed-up transactional managed database. Set a region/data-residency policy, access controls, indexes, migrations and retention. Load-test real concurrency and recovery.
 - Deploy a dedicated API runtime with TLS, restrictive CORS or same-origin reverse proxy, CSP, trusted-proxy settings, rate limits, health checks, secret manager and private DB network access.
 - Implement customer/provider eligibility, controlled identity review, restricted uploads, safety escalation, support/admin permission boundaries and audited actions.

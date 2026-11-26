@@ -1,12 +1,50 @@
 import express from 'express';
+import { join } from 'node:path';
+import { type AppConfig, type AuthAdapter } from './adapters/auth.js';
 import { unavailablePayments } from './adapters/payments.js';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { AppError, text, validateTask, price, transition } from './domain.js';
 import { demoProviders, type DB } from './db.js';
 import type { Task, Offer, User, Status } from '../shared/types.js';
-export function createApp(db: DB) {
+export function createApp(
+  db: DB,
+  options: { config?: AppConfig; auth?: AuthAdapter; frontendDir?: string } = {},
+) {
+  const config = options.config || { authMode: 'demo' };
+  const demo = config.authMode === 'demo';
+  if (!demo && (!options.auth || !config.supabase))
+    throw new Error('A configured auth verifier is required outside demo mode.');
+  if (
+    !demo &&
+    db.prepare("SELECT id FROM tasks WHERE json_extract(data, '$.sample')=1 LIMIT 1").get()
+  )
+    throw new Error('Use a clean database for account mode; demo fixtures must remain isolated.');
+  const workspaceMode = db
+    .prepare("SELECT value FROM workspace_meta WHERE key='auth_mode'")
+    .get() as { value: string } | undefined;
+  if (workspaceMode && workspaceMode.value !== config.authMode)
+    throw new Error(
+      'Workspace auth mode mismatch: use separate databases for sample and account environments.',
+    );
+  if (!workspaceMode)
+    db.prepare('INSERT INTO workspace_meta VALUES (?,?)').run('auth_mode', config.authMode);
+  const providers = demo ? demoProviders : [];
+
   const app = express();
   app.disable('x-powered-by');
+  app.use((_req, res, next) => {
+    res.set({
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+    });
+    if (options.frontendDir)
+      res.set(
+        'Content-Security-Policy',
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://*.supabase.co; img-src 'self' data:; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'",
+      );
+    next();
+  });
   app.use(express.json({ limit: '32kb' }));
   const sessions = new Map<string, { user: User; expires: number }>();
   const limits = new Map<string, { count: number; until: number }>();
@@ -32,7 +70,17 @@ export function createApp(db: DB) {
     }
     next();
   });
+  app.get('/api/health', (_req, res) => {
+    try {
+      db.prepare('SELECT 1').get();
+      res.json({ status: 'ok', version: '0.2.0' });
+    } catch {
+      res.status(503).json({ status: 'unavailable' });
+    }
+  });
+  app.get('/api/config', (_req, res) => res.json(config));
   app.post('/api/demo/session', (req, res) => {
+    if (!demo) throw new AppError(404, 'Development sessions are disabled.');
     const role = req.body.role;
     if (!['customer', 'provider'].includes(role))
       throw new AppError(400, 'Choose customer or provider.');
@@ -54,7 +102,22 @@ export function createApp(db: DB) {
     });
     res.json(user);
   });
-  app.use('/api', (req, res, next) => {
+  app.use('/api', async (req, res, next) => {
+    if (!demo) {
+      const authorization = req.get('Authorization') || '';
+      if (!/^Bearer [A-Za-z0-9._~-]{20,8192}$/.test(authorization))
+        throw new AppError(401, 'Please sign in to continue.');
+      const identity = await options.auth!.verify(authorization.slice(7));
+      if (!identity.emailVerified) throw new AppError(403, 'Confirm your email before continuing.');
+      // Identity comes from the trusted adapter. Client metadata cannot grant provider/admin access.
+      res.locals.user = {
+        id: identity.id,
+        name: identity.name,
+        role: 'customer',
+        emailVerified: true,
+      };
+      return next();
+    }
     const token = req.headers.cookie?.match(/(?:^|; )pafupi_session=([^;]+)/)?.[1];
     const session = token ? sessions.get(token) : undefined;
     if (!session || session.expires < Date.now())
@@ -103,7 +166,7 @@ export function createApp(db: DB) {
     const all = (
       db.prepare('SELECT data FROM tasks ORDER BY rowid DESC').all() as { data: string }[]
     ).map((r) => JSON.parse(r.data) as Task);
-    const profile = demoProviders.find((p) => p.id === user.id);
+    const profile = providers.find((p) => p.id === user.id);
     const tasks = all.filter(
       (t) =>
         t.ownerId === user.id ||
@@ -128,7 +191,7 @@ export function createApp(db: DB) {
           }
         : t,
     );
-    res.json({ user, tasks: visible, offers, providers: demoProviders, demo: true });
+    res.json({ user, tasks: visible, offers, providers, demo });
   });
   app.post('/api/quote', (req, res) => res.json(price(validateTask(req.body))));
   app.post('/api/tasks', (req, res) => {
@@ -171,7 +234,7 @@ export function createApp(db: DB) {
     const user = res.locals.user as User;
     const offer = atomic(() => {
       const task = getTask(req.params.id);
-      const provider = demoProviders.find((p) => p.id === user.id);
+      const provider = providers.find((p) => p.id === user.id);
       if (
         user.role !== 'provider' ||
         !provider?.available ||
@@ -323,6 +386,24 @@ export function createApp(db: DB) {
     res.status(201).json(message);
   });
   app.use('/api', (_req, res) => res.status(404).json({ error: 'API endpoint not found.' }));
+  if (options.frontendDir) {
+    app.use(
+      express.static(options.frontendDir, {
+        index: false,
+        dotfiles: 'deny',
+        setHeaders(res, file) {
+          res.setHeader(
+            'Cache-Control',
+            file.includes('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache',
+          );
+        },
+      }),
+    );
+    app.get('/{*path}', (req, res, next) => {
+      if (!req.accepts('html') || req.path.split('/').pop()?.includes('.')) return next();
+      res.set('Cache-Control', 'no-cache').sendFile(join(options.frontendDir!, 'index.html'));
+    });
+  }
   app.use(
     (err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
       const status =
@@ -333,7 +414,7 @@ export function createApp(db: DB) {
             : (err as { status?: number }).status === 413
               ? 413
               : 500;
-      if (status === 500) console.error(err);
+      if (status === 500) console.error('Unexpected API failure', { type: err.name });
       res
         .status(status)
         .json({ error: status === 500 ? 'Something went wrong. Please try again.' : err.message });

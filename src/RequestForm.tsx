@@ -9,6 +9,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { api } from './api';
+import { restoreDraft } from './drafts';
 import { Modal, QuoteView } from './ui';
 import { categories, type Category, type Quote, type Task, type TaskInput } from '../shared/types';
 const emptyInput: TaskInput = {
@@ -28,18 +29,29 @@ const emptyInput: TaskInput = {
 };
 export default function RequestForm({
   category,
+  ownerKey,
   onClose,
   onCreated,
 }: {
   category?: Category;
+  ownerKey: string;
   onClose: () => void;
   onCreated: (task: Task) => void;
 }) {
+  const storageKey = `pafupi-draft:${ownerKey}`;
   const initial = useRef<{ input: TaskInput; key: string } | null>(null);
   if (!initial.current) {
     try {
-      const raw = JSON.parse(localStorage.getItem('pafupi-draft') || 'null');
-      if (raw?.input && raw?.key) initial.current = raw;
+      const raw = JSON.parse(
+        localStorage.getItem(storageKey) ||
+          (ownerKey === 'customer-1' ? localStorage.getItem('pafupi-draft') : null) ||
+          'null',
+      );
+      const restored = restoreDraft(raw, { ...emptyInput, category: category || 'shopping' });
+      if (restored) {
+        initial.current = restored;
+        if (ownerKey === 'customer-1') localStorage.removeItem('pafupi-draft');
+      }
     } catch {
       /* recover a corrupt or unavailable draft */
     }
@@ -56,12 +68,15 @@ export default function RequestForm({
   const [saved, setSaved] = useState(true);
   useEffect(() => {
     try {
-      localStorage.setItem('pafupi-draft', JSON.stringify({ input, key: initial.current!.key }));
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({ input, key: initial.current!.key, updatedAt: Date.now() }),
+      );
       setSaved(true);
     } catch {
       setSaved(false);
     }
-  }, [input]);
+  }, [input, storageKey]);
   const update = (key: keyof TaskInput, value: string | number | boolean) =>
     setInput((i) => ({ ...i, [key]: value }));
   async function next(e: React.FormEvent) {
@@ -86,7 +101,8 @@ export default function RequestForm({
     try {
       const task = await api<Task>('/tasks', input, { 'Idempotency-Key': initial.current!.key });
       try {
-        localStorage.removeItem('pafupi-draft');
+        localStorage.removeItem(storageKey);
+        if (ownerKey === 'customer-1') localStorage.removeItem('pafupi-draft');
       } catch {
         /* no local storage */
       }
@@ -299,8 +315,8 @@ export default function RequestForm({
             <div className="info-note warm">
               <CircleHelp size={19} />
               <span>
-                Development preview: sample providers only. Real payments, identity checks and
-                fulfilment are not available.
+                Pre-launch workspace. Providers, payments, identity checks and fulfilment are not
+                enabled for live use. Publishing does not guarantee a match.
               </span>
             </div>
           </>

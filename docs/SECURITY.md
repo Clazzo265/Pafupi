@@ -1,8 +1,18 @@
 # Threat model & privacy
 
+## v0.2 security additions
+
+Optional hosted account authentication is implemented, **not configured by default**. See [FREE_TIER_STACK.md](FREE_TIER_STACK.md). `AUTH_MODE=supabase` requires provider-verified bearer tokens and email confirmation, disables demo sessions, rejects seeded demo data and keeps all accounts as customers until a reviewed provider-onboarding system is implemented. No editable user metadata can grant roles. Test stubs are injected only into test-created apps; no network endpoint can enable them.
+
+The browser stores hosted auth sessions in sessionStorage, which is still sensitive to XSS; never cache/log tokens or send them to third-party analytics. The SDK's session survives same-tab reload but is not guaranteed across tab closure. Passwords are handled by the provider SDK, not stored in the task DB. Provider revocation/expiry semantics and actual recovery/email delivery still require live integration verification.
+
+The build service worker caches **only static files**, never `/api`, cross-origin responses or writes. Offline loading shows a reconnection screen rather than a cached customer's task list. Drafts are user-scoped, validated, expire after seven days when restored, and current-account drafts are removed on sign-out. Device storage is not encrypted; use no sensitive content. A corrupt draft cannot restore task consent or grant backend privileges.
+
+Built-app serving adds CSP (self-hosted scripts/fonts, no objects, Supabase-only external connections), MIME/referrer/permissions headers, no-store APIs and no-cache service-worker/HTML responses. Set an appropriate frame-ancestor policy at the deployment gateway after determining allowed embed origins; previews must remain embeddable. Accessibility regression checks cover dashboard/request-dialog contrast and semantics, not the entire app or all assistive technologies.
+
 ## Safety boundary
 
-This is a **local/test development foundation**. Anyone able to reach `/api/demo/session` can choose one of the two shared test identities. Ownership checks protect data between those sample roles, **not between real people**. There is no real phone OTP, verified email, account recovery, administrative role or production trust decision. Do not expose this service to real customers or store real personal information. `server/index.ts` rejects `NODE_ENV=production` or `DEMO_MODE=false`.
+The default mode is a **local/test sample workspace**. In demo mode, anyone able to reach `/api/demo/session` can choose one of the two shared test identities. Ownership checks protect data between those sample roles, **not between real people**. Demo mode has no real phone OTP, verified email, account recovery or administrative role. Hosted mode can verify email and recover passwords when configured; neither mode is a production trust decision. Do not expose this service to real customers or store real personal information. `server/index.ts` rejects `NODE_ENV=production` or `DEMO_MODE=false`.
 
 ## Assets and adversaries
 
@@ -28,7 +38,7 @@ Express rate limiting is intentionally basic: it keys the actual socket address,
 ## Privacy and retention
 
 - **No GPS permission, coordinates, continuous tracking, contacts, ID documents, payment PINs or external analytics.** No map listings or landmarks are invented. Manual locations are user input, not verified POIs.
-- The selected service-area display label and unpublished draft are in localStorage. Shared-device users can access them; storage is not encrypted. Clear a draft under Profile. Do not enter sensitive information. A browser storage failure is surfaced instead of falsely claiming a draft was saved.
+- The selected service-area display label and unpublished draft are in localStorage. Shared-device users can access them; storage is not encrypted. Clear a draft under Profile. Do not enter sensitive information. A browser storage failure is surfaced instead of falsely claiming a draft was saved. Drafts are user-scoped and expire on restoration after seven days; expiry is not a background secure-erasure job.
 - Task descriptions are shown to eligible providers before assignment. Private pickup/destination fields are shared only after selection. A user can still disclose information in free text; UI warnings are not DLP.
 - Sample provider availability is illustrative; there are no verified performance ratings or paid trust badges.
 - Local database files contain all development requests/messages. `.gitignore` excludes `data/`, secrets and environment files. Nothing should ever push runtime data into GitHub commits, issues, artifacts or logs.

@@ -40,6 +40,7 @@ export const demoProviders: Provider[] = [
 export function openDb(path = ':memory:', seed = true) {
   const db = new DatabaseSync(path);
   db.exec(`PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;
+    CREATE TABLE IF NOT EXISTS workspace_meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS tasks(id TEXT PRIMARY KEY, data TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS offers(id TEXT PRIMARY KEY, taskId TEXT NOT NULL REFERENCES tasks(id), providerId TEXT NOT NULL, note TEXT NOT NULL, createdAt TEXT NOT NULL, UNIQUE(taskId,providerId));
     CREATE TABLE IF NOT EXISTS events(id TEXT PRIMARY KEY, taskId TEXT NOT NULL REFERENCES tasks(id), actorId TEXT NOT NULL, type TEXT NOT NULL, detail TEXT NOT NULL, createdAt TEXT NOT NULL);

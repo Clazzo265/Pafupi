@@ -45,14 +45,27 @@ import {
   type Task,
 } from '../shared/types';
 import './styles.css';
+import './premium.css';
+import { configureAuth, authClient, type PublicConfig } from './auth';
+import { AppExperience, TaskOverview, OfflineWelcome, ErrorBoundary } from './Experience';
 import { Avatar, Modal, catIcons, labels, money } from './ui';
+const AuthScreen = React.lazy(() => import('./AuthScreen'));
 const RequestForm = React.lazy(() => import('./RequestForm'));
 const TaskDetail = React.lazy(() => import('./TaskDetail'));
 type Page = 'Home' | 'Explore' | 'My Tasks' | 'Messages' | 'Profile';
+const pageHashes: Record<string, Page> = {
+  '#home': 'Home',
+  '#explore': 'Explore',
+  '#tasks': 'My Tasks',
+  '#messages': 'Messages',
+  '#profile': 'Profile',
+};
 function App() {
+  const [config, setConfig] = useState<PublicConfig | null>(null);
+  const [needsAuth, setNeedsAuth] = useState(false);
   const [data, setData] = useState<Bootstrap | null>(null);
   const [error, setError] = useState('');
-  const [page, setPage] = useState<Page>('Home');
+  const [page, setPage] = useState<Page>(pageHashes[location.hash] || 'Home');
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<Category | 'all'>('all');
   const [available, setAvailable] = useState(false);
@@ -65,6 +78,9 @@ function App() {
   const [info, setInfo] = useState<'preview' | 'location' | 'help' | 'notifications' | null>(null);
   const [toast, setToast] = useState('');
   const [mobileNav, setMobileNav] = useState(false);
+  const [compactNav, setCompactNav] = useState(
+    () => window.matchMedia('(max-width: 800px)').matches,
+  );
   const [taskFilter, setTaskFilter] = useState('All');
   const [online, setOnline] = useState(navigator.onLine);
   const [area, setArea] = useState(() => {
@@ -76,15 +92,36 @@ function App() {
   });
   const [areaDraft, setAreaDraft] = useState(area);
   async function refresh() {
-    setData(await api<Bootstrap>('/bootstrap'));
+    try {
+      setData(await api<Bootstrap>('/bootstrap'));
+    } catch (e) {
+      if ((e as { status?: number }).status === 401 && config?.authMode === 'supabase') {
+        setData(null);
+        setNeedsAuth(true);
+      }
+      throw e;
+    }
   }
   async function init() {
     setError('');
     try {
+      const activeConfig = await configureAuth();
+      setConfig(activeConfig);
+      if (activeConfig.authMode === 'supabase') {
+        const session = (await authClient().auth.getSession()).data.session;
+        if (!session || new URLSearchParams(location.search).get('flow') === 'recovery') {
+          setNeedsAuth(true);
+          return;
+        }
+      }
       try {
         await refresh();
       } catch (e) {
         if ((e as { status?: number }).status !== 401) throw e;
+        if (activeConfig.authMode === 'supabase') {
+          setNeedsAuth(true);
+          return;
+        }
         await api('/demo/session', { role: 'customer' });
         await refresh();
       }
@@ -94,7 +131,10 @@ function App() {
   }
   useEffect(() => {
     void init();
-    const on = () => setOnline(true),
+    const on = () => {
+        setOnline(true);
+        void init();
+      },
       off = () => setOnline(false);
     window.addEventListener('online', on);
     window.addEventListener('offline', off);
@@ -104,12 +144,65 @@ function App() {
     };
   }, []);
   useEffect(() => {
+    const media = window.matchMedia('(max-width: 800px)');
+    const change = () => setCompactNav(media.matches);
+    media.addEventListener('change', change);
+    return () => media.removeEventListener('change', change);
+  }, []);
+  useEffect(() => {
+    if (!mobileNav || !compactNav) return;
+    const aside = document.getElementById('workspace-nav')!;
+    const controls = () =>
+      Array.from(aside.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+    controls()[0]?.focus();
+    const trap = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMobileNav(false);
+      }
+      if (e.key === 'Tab') {
+        const items = controls();
+        const first = items[0],
+          last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    aside.addEventListener('keydown', trap);
+    return () => {
+      aside.removeEventListener('keydown', trap);
+      document.querySelector<HTMLButtonElement>('.mobile-menu')?.focus();
+    };
+  }, [mobileNav, compactNav]);
+  useEffect(() => {
+    const changed = () => setPage(pageHashes[location.hash] || 'Home');
+    window.addEventListener('hashchange', changed);
+    return () => window.removeEventListener('hashchange', changed);
+  }, []);
+  useEffect(() => {
+    if (config?.authMode !== 'supabase') return;
+    const { data: listener } = authClient().auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT' || event === 'PASSWORD_RECOVERY') {
+        setData(null);
+        setNeedsAuth(true);
+      }
+    });
+    return () => listener.subscription.unsubscribe();
+  }, [config?.authMode]);
+  useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(''), 6500);
     return () => clearTimeout(t);
   }, [toast]);
   function nav(p: Page) {
     setPage(p);
+    const hash = Object.entries(pageHashes).find(([, value]) => value === p)?.[0];
+    if (hash && location.hash !== hash) location.hash = hash;
     setMobileNav(false);
     setSearch('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -121,6 +214,10 @@ function App() {
     setRequest(true);
   }
   async function switchRole() {
+    if (!data?.demo) {
+      setToast('Provider onboarding is not open yet. Account roles cannot be self-assigned.');
+      return;
+    }
     try {
       await api('/demo/session', {
         role: data?.user.role === 'provider' ? 'customer' : 'provider',
@@ -133,6 +230,38 @@ function App() {
       setToast((e as Error).message);
     }
   }
+  async function signOut() {
+    try {
+      const result = await authClient().auth.signOut({ scope: 'local' });
+      if (result.error) throw result.error;
+      if (data) localStorage.removeItem(`pafupi-draft:${data.user.id}`);
+      setData(null);
+      setNeedsAuth(true);
+      setSelectedId(null);
+      setRequest(false);
+    } catch (e) {
+      setToast((e as Error).message);
+    }
+  }
+  if (!data && error && !online) return <OfflineWelcome onRetry={() => void init()} />;
+  if (needsAuth && config?.authMode === 'supabase')
+    return (
+      <React.Suspense
+        fallback={
+          <div className="loading-screen">
+            <LoaderCircle size={24} className="spin" />
+          </div>
+        }
+      >
+        <AuthScreen
+          onSignedIn={async () => {
+            await refresh();
+            setNeedsAuth(false);
+            setError('');
+          }}
+        />
+      </React.Suspense>
+    );
   if (!data)
     return (
       <div className="loading-screen">
@@ -251,8 +380,18 @@ function App() {
       <a className="skip-link" href="#main">
         Skip to content
       </a>
-      {mobileNav && <div className="nav-scrim" onClick={() => setMobileNav(false)} />}
-      <aside className={`sidebar ${mobileNav ? 'open' : ''}`}>
+      {mobileNav && (
+        <button
+          className="nav-scrim"
+          aria-label="Close navigation"
+          onClick={() => setMobileNav(false)}
+        />
+      )}
+      <aside
+        id="workspace-nav"
+        className={`sidebar ${mobileNav ? 'open' : ''}`}
+        inert={compactNav && !mobileNav}
+      >
         <button className="brand" onClick={() => nav('Home')} aria-label="Pafupi home">
           <span className="brand-mark">
             p<span />
@@ -294,7 +433,7 @@ function App() {
             <button onClick={() => void switchRole()}>
               {isProvider ? 'Try customer mode' : 'Try provider mode'} <ArrowUpRight size={15} />
             </button>
-            <small>Development personas</small>
+            <small>{data.demo ? 'Development personas' : 'Provider onboarding not yet open'}</small>
           </div>
           <button className="sidebar-help" onClick={() => setInfo('help')}>
             <CircleHelp size={18} />
@@ -302,10 +441,15 @@ function App() {
             <ArrowUpRight size={14} />
           </button>
           <button className="sidebar-user" onClick={() => nav('Profile')}>
-            <div className="user-avatar">{isProvider ? 'TM' : 'N'}</div>
+            <div className="user-avatar">
+              {data.demo ? (isProvider ? 'TM' : 'N') : data.user.name.slice(0, 2).toUpperCase()}
+            </div>
             <div>
               <b>{data.user.name}</b>
-              <small>{isProvider ? 'Provider' : 'Customer'} · sample account</small>
+              <small>
+                {isProvider ? 'Provider' : 'Customer'} ·{' '}
+                {data.demo ? 'sample account' : 'your account'}
+              </small>
             </div>
             <ChevronDown size={15} />
           </button>
@@ -315,6 +459,8 @@ function App() {
         <header className="topbar">
           <button
             aria-label="Open navigation"
+            aria-controls="workspace-nav"
+            aria-expanded={mobileNav}
             className="icon-button mobile-menu"
             onClick={() => setMobileNav(true)}
           >
@@ -354,7 +500,7 @@ function App() {
               ) && <span />}
             </button>
             <button className="top-avatar" aria-label="Open profile" onClick={() => nav('Profile')}>
-              {isProvider ? 'TM' : 'N'}
+              {data.demo ? (isProvider ? 'TM' : 'N') : data.user.name.slice(0, 2).toUpperCase()}
             </button>
           </div>
         </header>
@@ -366,6 +512,22 @@ function App() {
           </div>
         )}
         <main id="main">
+          <div className="workspace-notice">
+            <span>
+              <ShieldCheck size={15} />
+              {data.demo ? 'Sample workspace' : 'Email-confirmed account'}
+            </span>
+            <p>
+              {data.demo
+                ? 'Explore safely. Sample people and tasks; no real payments.'
+                : 'Your private workspace. Payments and provider onboarding are not yet available.'}
+            </p>
+            <button onClick={() => setInfo('preview')}>
+              What’s available
+              <ArrowUpRight size={13} />
+            </button>
+          </div>
+
           <div className="page-heading">
             <div>
               <div className="greeting-label">
@@ -416,6 +578,21 @@ function App() {
               </button>
             )}
           </div>
+          {page === 'Home' && (
+            <TaskOverview
+              data={data}
+              onTasks={() => {
+                setCategory('all');
+                setTaskFilter('Active');
+                nav('My Tasks');
+              }}
+              onOffers={() => {
+                setCategory('all');
+                setTaskFilter('Active');
+                nav('My Tasks');
+              }}
+            />
+          )}
           {(page === 'Home' || page === 'Explore') && (
             <div className="search-bar">
               <Search size={20} />
@@ -429,6 +606,7 @@ function App() {
               />
               <span className="search-hint">A task, a service, a helping hand</span>
               <button
+                aria-label="Filters"
                 className={filters ? 'filter-toggle selected' : 'filter-toggle'}
                 onClick={() => setFilters((f) => !f)}
                 aria-expanded={filters}
@@ -576,7 +754,7 @@ function App() {
                       <p>
                         {isProvider
                           ? 'Browse requests that match your sample service categories.'
-                          : 'Meet a few example faces from your future community.'}
+                          : 'Explore the people and services in this workspace.'}
                       </p>
                     </div>
                     <button className="text-link" onClick={() => nav('Explore')}>
@@ -603,8 +781,16 @@ function App() {
                       ))}
                       {!visibleProviders.length && (
                         <Empty
-                          title="No matching helping hands."
-                          text="Try a different search or clear your filters."
+                          title={
+                            data.demo
+                              ? 'No matching helping hands.'
+                              : 'Your community is just getting started.'
+                          }
+                          text={
+                            data.demo
+                              ? 'Try a different search or clear your filters.'
+                              : 'Provider onboarding is not open yet. No unverified or fabricated listings are shown.'
+                          }
                           icon={Search}
                         />
                       )}
@@ -921,21 +1107,41 @@ function App() {
           {page === 'Profile' && (
             <div className="profile-layout">
               <section className="profile-account">
-                <div className="large-user-avatar">{isProvider ? 'TM' : 'N'}</div>
-                <span className="sample-tag">Development account</span>
+                <div className="large-user-avatar">
+                  {data.demo ? (isProvider ? 'TM' : 'N') : data.user.name.slice(0, 2).toUpperCase()}
+                </div>
+                <span className="sample-tag">
+                  {data.demo ? 'Development account' : 'Personal account'}
+                </span>
                 <h2>{data.user.name}</h2>
-                <p>{isProvider ? 'Sample task provider' : 'Sample customer'} · Laws Campus pilot</p>
+                <p>
+                  {data.demo
+                    ? isProvider
+                      ? 'Sample task provider'
+                      : 'Sample customer'
+                    : 'Customer'}{' '}
+                  · Laws Campus pilot
+                </p>
                 <div className="info-note warm">
                   <CircleHelp size={20} />
                   <span>
-                    No email, phone or identity verification has taken place. This account is for
-                    development testing only.
+                    {data.demo
+                      ? 'No email, phone or identity verification has taken place. This account is for development testing only.'
+                      : 'Your email was confirmed by the sign-in provider. Phone, identity and university affiliation have not been verified.'}
                   </span>
                 </div>
                 <button className="button secondary full" onClick={() => void switchRole()}>
-                  Switch to {isProvider ? 'customer' : 'provider'} mode
+                  {data.demo
+                    ? `Switch to ${isProvider ? 'customer' : 'provider'} mode`
+                    : 'Provider onboarding status'}
                   <ArrowRight size={16} />
                 </button>
+                {!data.demo && (
+                  <button className="button ghost full" onClick={() => void signOut()}>
+                    Sign out of this device
+                    <ArrowRight size={16} />
+                  </button>
+                )}
               </section>
               <section className="profile-settings">
                 <h2>Your preferences & privacy</h2>
@@ -977,7 +1183,9 @@ function App() {
                 <button
                   onClick={() => {
                     try {
-                      localStorage.removeItem('pafupi-draft');
+                      localStorage.removeItem(`pafupi-draft:${data.user.id}`);
+                      if (data.demo && data.user.id === 'customer-1')
+                        localStorage.removeItem('pafupi-draft');
                       setToast('Local task draft removed from this device.');
                     } catch {
                       setToast('Your browser does not allow access to local storage.');
@@ -992,9 +1200,9 @@ function App() {
                   <ChevronRight size={16} />
                 </button>
                 <p className="fine-print">
-                  Data export, account deletion and verified sign-in are production launch
-                  requirements, not yet enabled. Use no real personal or sensitive information in
-                  this preview.
+                  Data export and account deletion are production launch requirements, not yet
+                  enabled. Hosted sign-in is available only when configured by the operator. Use no
+                  sensitive information in this pre-launch workspace.
                 </p>
               </section>
             </div>
@@ -1021,6 +1229,7 @@ function App() {
       >
         {request && (
           <RequestForm
+            ownerKey={data.user.id}
             category={requestCategory}
             onClose={() => setRequest(false)}
             onCreated={(t) => {
@@ -1175,6 +1384,14 @@ function App() {
                   <Sprout size={32} />
                 </div>
                 <h3>Your neighbourhood. Your people. Your tasks.</h3>
+                <div className="info-note">
+                  <ShieldCheck size={19} />
+                  <span>
+                    {data.demo
+                      ? 'You are using sample accounts. Hosted sign-in can be enabled by the operator.'
+                      : 'Hosted sign-in is connected and your email is confirmed. Payments, provider onboarding and production launch approval remain unavailable.'}
+                  </span>
+                </div>
                 <p>
                   PAFUPI connects everyday requests with people who can help, starting with the
                   University of Livingstonia, Laws Campus community in Rumphi, Malawi.
@@ -1186,9 +1403,10 @@ function App() {
                 </p>
                 <h4>What is not connected</h4>
                 <p>
-                  Real sign-in, identity verification, payments, GPS / routing, file evidence,
-                  notifications and live support. Sample profiles and the initial sample request are
-                  illustrative. No task fulfilment is promised.
+                  {data.demo ? 'Hosted sign-in is not configured in this workspace. ' : ''}Identity
+                  verification, payments, GPS / routing, file evidence, notifications and live
+                  support are unavailable. Sample profiles exist only in demo mode. No task
+                  fulfilment is promised.
                 </p>
                 <div className="info-note warm">
                   <CircleHelp size={20} />
@@ -1311,6 +1529,9 @@ function Empty({ icon: Icon, title, text }: { icon: LucideIcon; title: string; t
 }
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+      <AppExperience />
+    </ErrorBoundary>
   </React.StrictMode>,
 );

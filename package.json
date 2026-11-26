@@ -1,6 +1,6 @@
 {
   "name": "pafupi",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,9 +13,13 @@
     "test:e2e": "playwright test",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "pretest:e2e": "npm run build",
+    "serve:pilot": "SERVE_FRONTEND=true tsx server/index.ts"
   },
   "dependencies": {
+    "@fontsource-variable/manrope": "^5.3.0",
+    "@supabase/supabase-js": "^2.119.2",
     "@tailwindcss/vite": "^4.1.0",
     "express": "^5.1.0",
     "lucide-react": "^0.468.0",
@@ -24,6 +28,7 @@
     "tailwindcss": "^4.1.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.1",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.65.1",
     "@types/express": "^5.0.0",

@@ -1,5 +1,11 @@
 # Architecture, data model & API contracts
 
+## v0.2 additions
+
+Optional Supabase Auth is now implemented at `server/adapters/auth.ts` and `src/auth.ts`; see [activation and quota decisions](FREE_TIER_STACK.md). `/api/config` is public connection configuration and `/api/health` is a no-store database liveness probe. In account mode the server verifies bearer tokens using Supabase `getUser`, requires confirmed email and assigns customer permissions itself. No sample users/providers/tasks are returned; demo session creation is disabled. Account mode rejects seeded demo databases. The transactional task database remains **local SQLite**, not hosted Postgres.
+
+The frontend now has a static-only, release-hashed service worker (`tooling/pwa.ts`), PNG icons, lazy hosted-auth UI, an error boundary, hash-based workspace history and honest task-summary metrics. Only generated static files enter the service-worker cache; `/api` and cross-origin requests bypass it. Browser drafts are scoped by user ID and validated/expired on restoration. Built assets plus the API can be served from one origin using `npm run serve:pilot`; protected API routes are evaluated before SPA fallback and remain no-store.
+
 ## Boundaries
 
 ```text
@@ -14,7 +20,7 @@ Development only. React never writes the database. `shared/types.ts` defines res
 
 ### Production selection decision (not provisioned)
 
-Recommended evaluation: managed **PostgreSQL + PostGIS** and managed authentication (e.g. Supabase or equivalents), an always-on or serverless TypeScript backend, private object storage with signed URLs, a verified Malawi-capable licensed payment provider and a quota-limited routing adapter. PostgreSQL transactions, constraints and geographic indexes fit task assignment and financial ledgers. Firebase is a viable alternative to evaluate but has not been configured or assessed for pilot cost/region suitability. No provider's free tier or Malawi payment API access is assumed.
+Recommended evaluation: managed **PostgreSQL + PostGIS** and managed authentication (e.g. Supabase or equivalents), an always-on or serverless TypeScript backend, private object storage with signed URLs, a verified Malawi-capable licensed payment provider and a quota-limited routing adapter. PostgreSQL transactions, constraints and geographic indexes fit task assignment and financial ledgers. Firebase is a viable alternative to evaluate but has not been configured or assessed for pilot cost/region suitability. Current Supabase/Cloudflare free-tier limits have been reviewed and recorded in FREE_TIER_STACK.md; no account has been provisioned. Malawi payment API access is not assumed.
 
 Keep adapters replaceable. Document region/data residency, processing agreements, pricing, inactivity limits, egress, backup/restore and merchant approval before procurement. Use public verified map data only; manual landmarks are the current honest fallback. No coordinates or points of interest have been invented.
 
@@ -28,7 +34,7 @@ Keep adapters replaceable. Document region/data residency, processing agreements
 | `messages` | id, taskId FK, senderId, body, createdAt               | Owner/assigned provider only. No pre-assignment conversation. Plain text, max 2,000 characters.                                                                              |
 | `requests` | user-scoped key, ownerId, input fingerprint, taskId FK | Idempotent publication record. Same key + changed payload → 409.                                                                                                             |
 
-Session identities and three clearly labelled sample provider profiles are development fixtures, **not user/verification tables**. `sample: true` is reserved for the initial fixture task. Every newly published task is still development data even when `sample` is false. Never infer real verification from initials, availability or a sample name.
+In demo mode, session identities and three clearly labelled sample provider profiles are development fixtures, **not user/verification tables**. `sample: true` is reserved for the initial fixture task. Every newly published task is still development data even when `sample` is false. Never infer real verification from initials, availability or a sample name.
 
 SQLite uses foreign keys, WAL, parameterized statements and task indexes for events, offers and messages. Task JSON is suitable for this small foundation only; production requires typed columns, ownership constraints, owner/provider/status/category indexes and PostGIS service areas. Current discovery scans local tasks and is not scalable. API has no deletion endpoint. Retain development data only as long as needed; see operations for reset and backup. Add encrypted retention/deletion jobs and pagination before collecting real data.
 
@@ -63,7 +69,7 @@ The assigned provider performs the first five transitions; a nonempty evidence d
 
 ## HTTP contracts
 
-All JSON. Mutations require `Content-Type: application/json` and `X-Pafupi-Client: web`. Cookie is HttpOnly, SameSite=Strict, Secure when served through HTTPS. Cross-site Fetch Metadata writes are rejected. No CORS allowlist is opened. Errors: `{ "error": "Readable message" }`. Common codes: 400 input, 401 session, 403 permission, 404 missing resource, 409 state/retry conflict, 413 body limit, 429 rate limit, 503 integration unavailable.
+All JSON. Mutations require `Content-Type: application/json` and `X-Pafupi-Client: web`. Demo cookie is HttpOnly, SameSite=Strict, Secure when served through HTTPS. Hosted account mode uses a provider-validated Bearer token instead and disables the demo session endpoint. Cross-site Fetch Metadata writes are rejected. No CORS allowlist is opened. Errors: `{ "error": "Readable message" }`. Common codes: 400 input, 401 session, 403 permission, 404 missing resource, 409 state/retry conflict, 413 body limit, 429 rate limit, 503 integration unavailable.
 
 | Method | Path                        | Contract                                                                                                                             |
 | ------ | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |

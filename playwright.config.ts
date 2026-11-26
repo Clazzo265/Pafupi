@@ -21,7 +21,8 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
     },
     {
-      command: 'API_TARGET=http://127.0.0.1:3003 npx vite --host 0.0.0.0 --port 5174 --strictPort',
+      command:
+        'API_TARGET=http://127.0.0.1:3003 npx vite preview --host 0.0.0.0 --port 5174 --strictPort',
       url: 'http://127.0.0.1:5174',
       reuseExistingServer: !process.env.CI,
     },

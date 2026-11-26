@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useId } from 'react';
 import {
   GraduationCap,
   Heart,
@@ -53,6 +53,7 @@ export function Modal({
   wide?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
     const d = ref.current!;
     d.showModal();
@@ -65,6 +66,7 @@ export function Modal({
   return (
     <dialog
       ref={ref}
+      aria-labelledby={titleId}
       className={`modal ${wide ? 'wide' : ''}`}
       onCancel={onClose}
       onClick={(e) => {
@@ -73,7 +75,7 @@ export function Modal({
     >
       <div className="modal-header">
         <div>
-          <h2>{title}</h2>
+          <h2 id={titleId}>{title}</h2>
           {subtitle && <p>{subtitle}</p>}
         </div>
         <button aria-label="Close dialog" className="icon-button" onClick={onClose}>

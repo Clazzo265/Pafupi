@@ -2,25 +2,31 @@
 
 The PDF is a **multi-phase product specification**, not a claim that one foundation completes the system. This repository implements a usable development slice of phases 1–3. All remaining work must be tracked as reviewed issues before release.
 
+## v0.2 progress
+
+Premium typography/layout, data-derived task summaries, keyboard navigation, automated dashboard/dialog accessibility checks, account-scoped draft validation/expiry, offline static-shell recovery, safe install/update prompts, security headers and same-origin build serving are implemented. Optional Supabase email/password signup, confirmation, sign-in, password recovery, server token verification and sign-out are coded and tested with synthetic boundaries; **no live project is configured or certified**. Account mode contains no sample providers and does not permit self-assigned privileges. See [free-tier decisions and activation](FREE_TIER_STACK.md).
+
+The acceptance table below remains conservative: optional auth is not a completed production launch, local SQLite is not hosted transactional data, and a PWA does not solve payments, trust, safety operations or market validation.
+
 ## Acceptance matrix against the brief
 
-| #   | Criterion                          | Current evidence / gap                                                                                                            |
-| --- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Create a legitimate task           | Validated creation / explicit permitted-task agreement; no automatic restricted-content moderation yet                            |
-| 2   | Discover eligible nearby providers | Sample availability/category/transport filters only. No verified users or geographic matching                                     |
-| 3   | Appropriate distance/travel data   | Honest manual-location fallback; no numerical distance/time claims; routing absent                                                |
-| 4   | Reproducible transparent price     | Server calculator, quote breakdown, integer-rounding and manipulation tests; rates are hypotheses                                 |
-| 5   | Offers and selection               | Working for sample personas; expiry, renewal, uniqueness and atomic selection                                                     |
-| 6   | Trusted task states                | Backend state guards, transactional events and actor tests; payment-dependent transitions blocked                                 |
-| 7   | No client-forged payment success   | No confirmation API/client bypass; 503 unconfigured adapter; real payments unimplemented                                          |
-| 8   | Evidence and confirmation          | Text evidence guards and owner confirmation tested with isolated fixtures; real paid execution/files/codes absent                 |
-| 9   | Auditable dispute handling         | Participant can record dispute and history; no staffed investigation, adjudication or refunds                                     |
-| 10  | Unauthorized access blocked        | Sample-role privacy and ownership tests; **not real authentication**; production RBAC missing                                     |
-| 11  | Admin monitoring                   | Not implemented                                                                                                                   |
-| 12  | Affordable Android / connectivity  | Responsive layout, low-data vector assets, offline notice, draft persistence; real device/field tests and resilient queues needed |
-| 13  | Automated major workflows          | Backend suite plus desktop/mobile browser suite; real external services/security/load testing remains                             |
-| 14  | No critical issue before launch    | **Not approved for production**. Shared demo accounts are deliberately unsuitable for real use                                    |
-| 15  | GitHub canonical source/automation | Source, documentation and CI workflow present; repo owners must enable protections, Projects and deployment environments          |
+| #   | Criterion                          | Current evidence / gap                                                                                                                                     |
+| --- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Create a legitimate task           | Validated creation / explicit permitted-task agreement; no automatic restricted-content moderation yet                                                     |
+| 2   | Discover eligible nearby providers | Sample availability/category/transport filters only. No verified users or geographic matching                                                              |
+| 3   | Appropriate distance/travel data   | Honest manual-location fallback; no numerical distance/time claims; routing absent                                                                         |
+| 4   | Reproducible transparent price     | Server calculator, quote breakdown, integer-rounding and manipulation tests; rates are hypotheses                                                          |
+| 5   | Offers and selection               | Working for sample personas; expiry, renewal, uniqueness and atomic selection                                                                              |
+| 6   | Trusted task states                | Backend state guards, transactional events and actor tests; payment-dependent transitions blocked                                                          |
+| 7   | No client-forged payment success   | No confirmation API/client bypass; 503 unconfigured adapter; real payments unimplemented                                                                   |
+| 8   | Evidence and confirmation          | Text evidence guards and owner confirmation tested with isolated fixtures; real paid execution/files/codes absent                                          |
+| 9   | Auditable dispute handling         | Participant can record dispute and history; no staffed investigation, adjudication or refunds                                                              |
+| 10  | Unauthorized access blocked        | Sample-role privacy and ownership tests; demo remains sample auth; optional hosted auth coded/tested with fixtures, live setup and privileged RBAC missing |
+| 11  | Admin monitoring                   | Not implemented                                                                                                                                            |
+| 12  | Affordable Android / connectivity  | Responsive layout, low-data vector assets, offline notice, draft persistence; real device/field tests and resilient queues needed                          |
+| 13  | Automated major workflows          | Backend suite plus desktop/mobile browser suite; real external services/security/load testing remains                                                      |
+| 14  | No critical issue before launch    | **Not approved for production**. Shared demo accounts are deliberately unsuitable for real use                                                             |
+| 15  | GitHub canonical source/automation | Source, documentation and CI workflow present; repo owners must enable protections, Projects and deployment environments                                   |
 
 ## Prioritized engineering backlog
 

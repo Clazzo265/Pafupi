@@ -1,8 +1,14 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { offlineShell } from './tooling/pwa';
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), offlineShell()],
+  preview: {
+    host: '0.0.0.0',
+    allowedHosts: ['.e2b.app', 'localhost'],
+    proxy: { '/api': process.env.API_TARGET || 'http://127.0.0.1:3001' },
+  },
   server: {
     host: '0.0.0.0',
     allowedHosts: ['.e2b.app', 'localhost'],

@@ -122,6 +122,7 @@ export interface User {
   id: string;
   name: string;
   role: 'customer' | 'provider';
+  emailVerified?: boolean;
 }
 export interface Bootstrap {
   user: User;
