@@ -9,14 +9,20 @@ if (process.env.NODE_ENV === 'production')
   );
 mkdirSync('data', { recursive: true });
 const config = readConfig();
+const publicDemo = process.env.PUBLIC_DEMO === 'true';
+if (publicDemo && config.authMode !== 'demo')
+  throw new Error('PUBLIC_DEMO requires AUTH_MODE=demo.');
 const db = openDb(
-  process.env.DATABASE_PATH ||
-    (config.authMode === 'demo' ? 'data/pafupi.sqlite' : 'data/accounts.sqlite'),
+  publicDemo
+    ? ':memory:'
+    : process.env.DATABASE_PATH ||
+        (config.authMode === 'demo' ? 'data/pafupi.sqlite' : 'data/accounts.sqlite'),
   config.authMode === 'demo',
 );
 const port = Number(process.env.PORT || 3001);
 const server = createApp(db, {
   config,
+  publicDemo,
   frontendDir: process.env.SERVE_FRONTEND === 'true' ? resolve('dist') : undefined,
   auth: config.authMode === 'supabase' ? supabaseAuth(config) : undefined,
 }).listen(port, '0.0.0.0', () =>

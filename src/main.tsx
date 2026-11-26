@@ -515,12 +515,18 @@ function App() {
           <div className="workspace-notice">
             <span>
               <ShieldCheck size={15} />
-              {data.demo ? 'Sample workspace' : 'Email-confirmed account'}
+              {data.publicDemo
+                ? 'Shared public demo'
+                : data.demo
+                  ? 'Sample workspace'
+                  : 'Email-confirmed account'}
             </span>
             <p>
-              {data.demo
-                ? 'Explore safely. Sample people and tasks; no real payments.'
-                : 'Your private workspace. Payments and provider onboarding are not yet available.'}
+              {data.publicDemo
+                ? 'Shared sample accounts. Use synthetic details only. Data resets on restart; payments disabled.'
+                : data.demo
+                  ? 'Explore safely. Sample people and tasks; no real payments.'
+                  : 'Your private workspace. Payments and provider onboarding are not yet available.'}
             </p>
             <button onClick={() => setInfo('preview')}>
               What’s available
@@ -564,7 +570,9 @@ function App() {
                     : page === 'My Tasks'
                       ? 'From the first request to the final thank you. All your tasks, here.'
                       : page === 'Messages'
-                        ? 'Private, task-specific conversations with your selected helper.'
+                        ? data.publicDemo
+                          ? 'Shared sample conversations. Never enter personal information.'
+                          : 'Private, task-specific conversations with your selected helper.'
                         : 'A little about you, and how you use PAFUPI.'}
               </p>
             </div>
@@ -933,7 +941,8 @@ function App() {
                   </div>
                   <h3>A safer way to lend a hand.</h3>
                   <p>
-                    Clear prices. Private conversations.
+                    Clear prices.{' '}
+                    {data.publicDemo ? 'Shared sample conversations.' : 'Private conversations.'}
                     <br />A record of every important step.
                   </p>
                   <button onClick={() => setInfo('help')}>
@@ -1090,7 +1099,12 @@ function App() {
                       </div>
                       <div>
                         <h3>{t.title}</h3>
-                        <p>{labels[t.status]} · Private task conversation</p>
+                        <p>
+                          {labels[t.status]} ·{' '}
+                          {data.publicDemo
+                            ? 'Shared demo conversation'
+                            : 'Private task conversation'}
+                        </p>
                       </div>
                       <ChevronRight size={18} />
                     </button>
@@ -1230,6 +1244,7 @@ function App() {
         {request && (
           <RequestForm
             ownerKey={data.user.id}
+            publicDemo={data.publicDemo}
             category={requestCategory}
             onClose={() => setRequest(false)}
             onCreated={(t) => {

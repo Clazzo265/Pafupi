@@ -30,11 +30,13 @@ const emptyInput: TaskInput = {
 export default function RequestForm({
   category,
   ownerKey,
+  publicDemo = false,
   onClose,
   onCreated,
 }: {
   category?: Category;
   ownerKey: string;
+  publicDemo?: boolean;
   onClose: () => void;
   onCreated: (task: Task) => void;
 }) {
@@ -120,6 +122,15 @@ export default function RequestForm({
       onClose={onClose}
       wide
     >
+      {publicDemo && (
+        <div className="info-note warm public-demo-warning">
+          <CircleHelp size={19} />
+          <span>
+            Public shared demo: all visitors use the same sample accounts. Requests and messages can
+            be seen by other visitors. Use synthetic information only. Everything resets on restart.
+          </span>
+        </div>
+      )}
       <div className="stepper">
         {['The task', 'The details', 'Review & publish'].map((s, i) => (
           <div key={s} className={step >= i + 1 ? 'current' : ''}>

@@ -85,6 +85,15 @@ export default function TaskDetail({
       wide
     >
       <div className="detail-body">
+        {data.publicDemo && (
+          <div className="info-note warm">
+            <ShieldCheck size={18} />
+            <span>
+              Shared public demo. Other visitors can access these sample accounts, task details and
+              messages. Do not share personal information or payment credentials.
+            </span>
+          </div>
+        )}
         <div className="detail-status">
           <span className={`status ${task.status === 'COMPLETED' ? 'complete' : ''}`}>
             <span className="tiny-dot" />

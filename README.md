@@ -17,6 +17,12 @@ A Malawi-first, mobile-friendly task marketplace based on the supplied _PAFUPI M
 
 See [the free-tier stack and activation guide](docs/FREE_TIER_STACK.md) for the services researched via **free-for.dev**, current official limits, exact setup steps and remaining dependencies. No external account or paid service has been provisioned.
 
+## Hosted demo deployment
+
+A one-click **Render Free** Blueprint is prepared for the complete frontend + API. It is a disposable shared demo, not production hosting. The repository owner must approve it in their Render account; no external deployment is claimed yet. See [deployment instructions and data-loss/cost limitations](docs/RENDER_DEMO.md).
+
+[Review and deploy this branch on Render](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FClazzo265%2FPafupi%2Ftree%2Farena%2Fc01f6663-pafupi)
+
 ## Run locally
 
 Requires **Node.js 22.13+** (tested with 22.22.3; built-in `node:sqlite` is experimental on Node 22) and npm 10+.

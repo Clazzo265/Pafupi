@@ -8,10 +8,17 @@ import { demoProviders, type DB } from './db.js';
 import type { Task, Offer, User, Status } from '../shared/types.js';
 export function createApp(
   db: DB,
-  options: { config?: AppConfig; auth?: AuthAdapter; frontendDir?: string } = {},
+  options: {
+    config?: AppConfig;
+    auth?: AuthAdapter;
+    frontendDir?: string;
+    publicDemo?: boolean;
+  } = {},
 ) {
   const config = options.config || { authMode: 'demo' };
   const demo = config.authMode === 'demo';
+  if (options.publicDemo && !demo)
+    throw new Error('Public demonstration mode requires sample authentication.');
   if (!demo && (!options.auth || !config.supabase))
     throw new Error('A configured auth verifier is required outside demo mode.');
   if (
@@ -87,6 +94,8 @@ export function createApp(
     const oldToken = req.headers.cookie?.match(/(?:^|; )pafupi_session=([^;]+)/)?.[1];
     if (oldToken) sessions.delete(oldToken);
     for (const [key, value] of sessions) if (value.expires < Date.now()) sessions.delete(key);
+    if (options.publicDemo && sessions.size >= 1000)
+      throw new AppError(503, 'This shared demo is busy. Please try again later.');
     const token = randomBytes(32).toString('hex');
     const user: User =
       role === 'customer'
@@ -191,7 +200,14 @@ export function createApp(
           }
         : t,
     );
-    res.json({ user, tasks: visible, offers, providers, demo });
+    res.json({
+      user,
+      tasks: visible,
+      offers,
+      providers,
+      demo,
+      publicDemo: Boolean(options.publicDemo),
+    });
   });
   app.post('/api/quote', (req, res) => res.json(price(validateTask(req.body))));
   app.post('/api/tasks', (req, res) => {
@@ -208,6 +224,14 @@ export function createApp(
           throw new AppError(409, 'This request key was already used for different task details.');
         return getTask(previous.taskId);
       }
+      if (
+        options.publicDemo &&
+        (db.prepare('SELECT COUNT(*) AS n FROM tasks').get() as { n: number }).n >= 2000
+      )
+        throw new AppError(
+          503,
+          'The shared demo has reached its task limit. Data resets when the demo restarts.',
+        );
       const task: Task = {
         ...input,
         id: randomUUID(),
@@ -369,6 +393,14 @@ export function createApp(
     participant(task, user);
     if (!task.providerId)
       throw new AppError(409, 'Choose a provider before starting a task conversation.');
+    if (
+      options.publicDemo &&
+      (db.prepare('SELECT COUNT(*) AS n FROM messages').get() as { n: number }).n >= 5000
+    )
+      throw new AppError(
+        503,
+        'The shared demo has reached its message limit. Please try after the next restart.',
+      );
     const message = {
       id: randomUUID(),
       taskId: task.id,

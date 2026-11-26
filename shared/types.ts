@@ -130,4 +130,5 @@ export interface Bootstrap {
   providers: Provider[];
   offers: Offer[];
   demo: boolean;
+  publicDemo?: boolean;
 }

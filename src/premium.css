@@ -1167,3 +1167,6 @@ body {
     white-space: nowrap;
   }
 }
+.public-demo-warning {
+  margin: 20px 25px 0;
+}
