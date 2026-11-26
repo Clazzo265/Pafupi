@@ -17,11 +17,13 @@ A Malawi-first, mobile-friendly task marketplace based on the supplied _PAFUPI M
 
 See [the free-tier stack and activation guide](docs/FREE_TIER_STACK.md) for the services researched via **free-for.dev**, current official limits, exact setup steps and remaining dependencies. No external account or paid service has been provisioned.
 
-## Hosted demo deployment
+## GitHub-only demo deployment
 
-A one-click **Render Free** Blueprint is prepared for the complete frontend + API. It is a disposable shared demo, not production hosting. The repository owner must approve it in their Render account; no external deployment is claimed yet. See [deployment instructions and data-loss/cost limitations](docs/RENDER_DEMO.md).
+The selected hosting plan is **GitHub Pages**, using a separate, read-only concept demo with no backend calls. It includes sample service browsing, category filters and expandable examples—not accounts, bookings, saved requests, messaging or payments. The full application described below remains development software, not the Pages deployment.
 
-[Review and deploy this branch on Render](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2FClazzo265%2FPafupi%2Ftree%2Farena%2Fc01f6663-pafupi)
+Build with `npm run build:pages`; test with `npm run test:pages`. The deployment workflow is `.github/workflows/pages.yml`. **An owner must enable Settings → Pages → Source: GitHub Actions**; this session's integration was denied Pages administration (HTTP 403). See [Pages setup, expected URL and limitations](docs/GITHUB_PAGES.md). A URL is not confirmed live until its deployment succeeds.
+
+The earlier [optional Render setup](docs/RENDER_DEMO.md) is retained for reference only and is not activated by GitHub Pages.
 
 ## Run locally
 

@@ -19,6 +19,8 @@
     "vite.config.ts",
     "playwright.config.ts",
     "tests",
-    "tooling"
+    "tooling",
+    "pages.playwright.config.ts",
+    "pages-tests"
   ]
 }
