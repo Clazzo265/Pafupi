@@ -1,0 +1,24 @@
+# Shared, disposable demonstration only. This is not a production marketplace.
+# Approve this Blueprint in your own Render account. No services are provisioned by this file.
+services:
+  - type: web
+    name: pafupi-clazzo265-preview
+    runtime: node
+    plan: free
+    repo: https://github.com/Clazzo265/Pafupi
+    branch: arena/c01f6663-pafupi
+    autoDeployTrigger: off
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run serve:pilot
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.16.0
+      - key: NODE_ENV
+        value: development
+      - key: AUTH_MODE
+        value: demo
+      - key: PUBLIC_DEMO
+        value: 'true'
+      - key: DATABASE_PATH
+        value: ':memory:'
